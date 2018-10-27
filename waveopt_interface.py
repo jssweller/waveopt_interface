@@ -15,7 +15,7 @@ import sys
 
 __author__ = "Jesse Weller"
 __copyright__ = "Copyright 2018, Jesse Weller, All rights reserved"
-__version__ = "1.0.3" #edited 6/25/2018
+__version__ = "1.0.4"
 __email__ = "wellerj@oregonstate.edu"
 
 ######################### FUNCTIONS ###################################
@@ -26,25 +26,17 @@ def flatten_mask(mask):
 
 def get_buffer_size(pipe_handle, num_bytes):
     """Return buffer size as int."""
-    buffer_size = int.from_bytes(wf.ReadFile(pipe_handle, num_bytes)[1], byteorder='big')
+    buffer_size = int.from_bytes(wf.ReadFile(pipe_handle, num_bytes)[1], byteorder='little', signed=False)
     return buffer_size
 
 def encode_mask(mask, num_bytes_buffer):
     """Return buffer size and mask as bytearray."""
-    return bytearray(len(mask).to_bytes(num_bytes_buffer, byteorder='big')) + bytearray(mask)
+    return bytearray(len(mask).to_bytes(num_bytes_buffer, byteorder='little', signed=False)) + bytearray(mask)
 
 
 def plot_mask(mask,mask_width,mask_height):
     plt.matshow(flatten_mask(mask).reshape(mask_height,mask_width))
-    print('width = ',mask_width,'\nmask_height',mask_height)
-    mask = flatten_mask(mask)
-    new_mask = np.zeros(mask_width*mask_height).reshape(mask_height,mask_width)
-    for i in range(mask_height):
-        for j in range(mask_width):
-            new_mask[i,j] = mask[i*mask_width+j]
-    plt.matshow(new_mask)
     plt.show()
-
 
 def get_output_fields(input_masks,
                       segment_width,
@@ -59,7 +51,7 @@ def get_output_fields(input_masks,
     roi_placeholder = []
 
     ###### PLOT MASK ####
-    plot_mask(input_masks[0],segment_width*segment_cols,segment_height*segment_rows)
+    # plot_mask(input_masks[0],segment_width*segment_cols,segment_height*segment_rows)
     
     for mask in input_masks:
         wf.WriteFile(pipe_handle_out,
@@ -67,7 +59,7 @@ def get_output_fields(input_masks,
 
         read_pipe = wf.ReadFile(pipe_handle_in, get_buffer_size(pipe_handle_in, num_bytes_buffer))
         read_array = list(read_pipe[1])
-        roi_placeholder.append(read_array)
+        roi_placeholder.append(fitness(read_array))
     print(time.time()-t0)
     return roi_placeholder
 
@@ -75,14 +67,12 @@ def ranksort(output_fields, input_masks, generation, prev_time):
     """Return list of input masks sorted by fitness value"""
     ranks=[]
     sorted_input=[]
-    fitness_output=[]
-    for field in output_fields:
-        fitness_output.append(fitness(field))
-    ranks=np.argsort(fitness_output)
+
+    ranks=np.argsort(output_fields)
     for i in range(len(input_masks)):
         sorted_input.append(input_masks[ranks[i]])
     if generation % 1 == 0:
-        print("Generation ",generation,": output focus=",np.mean(fitness_output))
+        print("Generation ",generation,": output focus=",output_fields[ranks[-1]])
         print("time: ",str(datetime.timedelta(seconds=time.time()-prev_time)))
     return sorted_input 
 
@@ -110,7 +100,7 @@ def init_masks(num_masks, segment_rows, segment_cols, segment_height, segment_wi
         newmask = np.empty((segment_rows, segment_cols, segment_height, segment_width), np.uint8)
         for row in range(segment_rows):
             for col in range(segment_cols):
-                newmask[row,col,:,:] = np.ones((segment_height,segment_width))*phase_vals[np.random.randint(0,len(phase_vals))]
+                newmask[row,col,:,:] = phase_vals[np.random.randint(0,len(phase_vals))]
         input_masks.append(newmask)
         
     return input_masks
@@ -135,7 +125,8 @@ def wavefront_phase_optimizer(pipe_in_handle,
                               mutate_initial_rate,
                               mutate_final_rate,
                               mutate_decay_factor,
-                              prev_time):
+                              prev_time,
+                              plot_bool):
     """Optimize wavefront over generations. Return final mask array, list of output values
 
     Note: iterates over generations. For each generation: generates output intensity field matrices,
@@ -184,7 +175,9 @@ def wavefront_phase_optimizer(pipe_in_handle,
                                         bytes_buffer_size)
         max_output_vals.append(np.max(slm_outputs)) # record max output values for visualization
         input_masks = ranksort(slm_outputs,input_masks,gen, prev_time) # sort input masks by rank
-        
+        if plot_bool is True:
+            plt.plot(max_output_vals)
+            plt.pause(0.05)    
         for child in range(num_childs): # make "G" new masks through breeding
             parents = select_parents(parent_index_dist, parent_probability_dist)
             input_masks[child] = breed(input_masks[parents[0]],input_masks[parents[1]],num_mutations,phase_vals)
@@ -197,7 +190,7 @@ def fitness(output_field):
 
     Note: Adjust fitness function to suit your optimization process.
     """
-    return np.mean(output_field)
+    return np.sum(output_field)
 
 ################################# MAIN ##############################################
 if __name__ == '__main__':
@@ -205,11 +198,12 @@ if __name__ == '__main__':
     PIPE_IN_HANDLE = "\\\\.\\pipe\\LABVIEW_OUT"
     PIPE_OUT_HANDLE = "\\\\.\\pipe\\LABVIEW_IN"
     BYTES_BUFFER_SIZE = 4
+    PLOT = True # plots fitness values for each generation if True, no plot if False
                             
     SLM_WIDTH = 32*6
     SLM_HEIGHT = 24*6
-    SEGMENT_WIDTH = 4 # SLM_WIDTH % SEGMENT_WIDTH must be 0
-    SEGMENT_HEIGHT = 3 # SLM_HEIGHT % SEGMENT_HEIGHT must be 0
+    SEGMENT_WIDTH = 32 # SLM_WIDTH % SEGMENT_WIDTH must be 0
+    SEGMENT_HEIGHT = 24 # SLM_HEIGHT % SEGMENT_HEIGHT must be 0
     POP = 30 # Population of generated input phase masks. (optimal ~ 30)
     GENS = 5000 # Number of generations to run algorithm. (optimal ~ 2000)
 
@@ -238,7 +232,8 @@ if __name__ == '__main__':
                                                                 MUTATE_INITIAL_RATE,
                                                                 MUTATE_FINAL_RATE,
                                                                 MUTATE_DECAY_FACTOR,
-                                                                time_start)
+                                                                time_start,
+                                                                PLOT)
     time_end = time.time()
     print("time: ",str(datetime.timedelta(seconds=time_end-time_start)))
     print("seconds: ",time_end-time_start)
