@@ -35,6 +35,7 @@ def encode_mask(mask, num_bytes_buffer):
 
 
 def plot_mask(mask,mask_width,mask_height):
+    """Plots the flattened and then reshaped phase values of the mask"""
     plt.matshow(flatten_mask(mask).reshape(mask_height,mask_width))
     plt.show()
 
@@ -49,7 +50,6 @@ def get_output_fields(input_masks,
     """Transmit mask pixel data through pipe to apparatus. Return list of ROI field arrays."""
     t0=time.time()
     roi_placeholder = []
-
     ###### PLOT MASK ####
     # plot_mask(input_masks[0],segment_width*segment_cols,segment_height*segment_rows)
     
@@ -190,7 +190,7 @@ def fitness(output_field):
 
     Note: Adjust fitness function to suit your optimization process.
     """
-    return np.sum(output_field)
+    return np.mean(output_field)
 
 ################################# MAIN ##############################################
 if __name__ == '__main__':
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     SEGMENT_WIDTH = 32 # SLM_WIDTH % SEGMENT_WIDTH must be 0
     SEGMENT_HEIGHT = 24 # SLM_HEIGHT % SEGMENT_HEIGHT must be 0
     POP = 30 # Population of generated input phase masks. (optimal ~ 30)
-    GENS = 5000 # Number of generations to run algorithm. (optimal ~ 2000)
+    GENS = 1000 # Number of generations to run algorithm. (optimal ~ 2000)
 
     MUTATE_INITIAL_RATE = .1 # (optimal ~ .1)
     MUTATE_FINAL_RATE = .013 # (optimal ~ .013)
