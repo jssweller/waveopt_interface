@@ -199,113 +199,113 @@ def fitness(output_field):
 if __name__ == '__main__':   
 
     ############## Parse Command Line Arguments #############################   
-    
+    print('WAVEOPT BEGINNING...')
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--PIPE_IN_HANDLE',
         type=str,
         default='\\\\.\\pipe\\LABVIEW_OUT',
-        help="""\Input Pipe handle.\
-      """
+        help='Input Pipe handle.'
+    
     )
     parser.add_argument(
         '--PIPE_OUT_HANDLE',
         type=str,
         default='\\\\.\\pipe\\LABVIEW_IN',
-        help="""\Output Pipe handle.\
-      """
+        help='Output Pipe handle.'
+    
     )        
     parser.add_argument(
         '--BYTES_BUFFER_SIZE',
         type=int,
         default=4,
-        help="""\Pipe inputoutput buffer size.\
-      """
+        help='Pipe inputoutput buffer size.'
+    
     )  
     parser.add_argument(
         '--PLOT',
         type=bool,
         default=False,
-        help="""\Turn on/off visualization of optimization.\
-      """
+        help='Turn on/off visualization of optimization.'
+    
     )
     parser.add_argument(
         '--SLM_WIDTH',
         type=int,
         default=1024,
-        help="""\Pixel width of SLM.\
-      """
+        help='Pixel width of SLM.'
+    
     )
     parser.add_argument(
         '--SLM_HEIGHT',
         type=int,
         default=768,
-        help="""\Pixel height of SLM.\
-      """
+        help='Pixel height of SLM.'
+    
     )
     parser.add_argument(
         '--SEGMENT_WIDTH',
         type=int,
         default=32,
-        help="""\Pixel width of each segment (group of pixels on SLM).\
-      """
+        help='Pixel width of each segment (group of pixels on SLM).'
+    
     )
     parser.add_argument(
         '--SEGMENT_HEIGHT',
         type=int,
         default=24,
-        help="""\Pixel height of each segment (group of pixels on SLM).\
-      """
+        help='Pixel height of each segment (group of pixels on SLM).'
+    
     )
        
     parser.add_argument(
         '--POP',
         type=int,
         default=30,
-        help="""\Initial population of randomly generated phase masks in genetic algorithm.\
-      """
+        help='Initial population of randomly generated phase masks in genetic algorithm.'
+    
     )
     parser.add_argument(
         '--GENS',
         type=int,
         default=1000,
-        help="""\Number of generations to run genetic algorithm.\
-      """
+        help='Number of generations to run genetic algorithm.'
+     
     )
     parser.add_argument(
         '--MUTATE_INITIAL_RATE',
         type=float,
         default=.1,
-        help="""\Initial mutation rate for genetic algorithm.\
-      """
+        help='Initial mutation rate for genetic algorithm.'
+    
     )
     parser.add_argument(
         '--MUTATE_FINAL_RATE',
         type=float,
         default=.013,
-        help="""\Final mutation rate for genetic algorithm.\
-      """
+        help='Final mutation rate for genetic algorithm.'
+    
     )
     parser.add_argument(
         '--MUTATE_DECAY_FACTOR',
         type=float,
         default=650,
-        help="""\Final mutation rate for genetic algorithm.\
-      """
+        help='Final mutation rate for genetic algorithm.'
+    
     )
     parser.add_argument(
         '--NUM_PHASE_VALS',
         type=int,
         default=256,
-        help="""\Number of discrete phase values to be passed to SLM.\
-      """
+        help='Number of discrete phase values to be passed to SLM.'
+    
     )
     parser.add_argument(
         '--SAVE_PATH',
         type=str,
         default='/tmp/optimized_masks/optimized_mask.txt',
-        help="""\Path of text file to save optimized mask.\
-      """
+        help='Path of text file to save optimized mask.'
+    
     )
     args = parser.parse_args()
     
@@ -323,7 +323,7 @@ if __name__ == '__main__':
     GENS = args.GENS # Number of generations to run algorithm. (optimal ~ 2000)
 
     MUTATE_INITIAL_RATE = args.MUTATE_INITIAL_RATE # (optimal ~ .1)
-    MUTATE_FINAL_RATE = .args.MUTATE_FINAL_RATE # (optimal ~ .013)
+    MUTATE_FINAL_RATE = args.MUTATE_FINAL_RATE # (optimal ~ .013)
     MUTATE_DECAY_FACTOR = args.MUTATE_DECAY_FACTOR # (optimal ~ 650)
 
     NUM_PHASE_VALS = args.NUM_PHASE_VALS
