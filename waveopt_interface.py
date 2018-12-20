@@ -1,10 +1,33 @@
 #!/usr/bin/env python
-"""Genetic Algorithm optimizer for phase modulated wavefront.
+r"""
+Genetic Algorithm optimizer for phase modulated wavefront. This program creates two
+win32 pipes for interfacing with SLM apparatus. For each generation each SLM mask is
+sent through output pipe to SLM apparatus and the output field metric for each mask is
+received from apparatus through input pipe. Masks and metrics are sent and received one
+at a time, sequentially. The metrics are then passed through a fitness function, ranking the
+masks which are sorted based on this rank.
 
-This algorithm is approximately optimized when number of segments ~ 1000, number of generations pipe_out ~ 2500, and population of
-input masks POP ~ 30. Adjust fitness function and PARAMETERS under MAIN.
+The default fitness function simply takes the mean of the metric values received from the pipe.
+The output field metric can be a single value or an array of values (e.g. pixel intensities in
+the region of interest).
+
+Parameters can be adjusted with command line arguments. For a list of parameters that
+can be adjusted and their default values, run the following on the command line:
+
+```bash
+python waveopt_interface.py -h
+```
+
+For example, to run the optimizer for 500 generations, segment width of 16,
+and segment height of 12:
+
+```bash
+python waveopt_interface.py --gens 500 --segment_width 16 --segment_width 12
+```
+
 """
 
+import argparse
 import numpy as np
 import win32pipe as wp
 import win32file as wf
@@ -15,7 +38,7 @@ import sys
 
 __author__ = "Jesse Weller"
 __copyright__ = "Copyright 2018, Jesse Weller, All rights reserved"
-__version__ = "1.0.4"
+__version__ = "1.1"
 __email__ = "wellerj@oregonstate.edu"
 
 ######################### FUNCTIONS ###################################
@@ -47,7 +70,7 @@ def get_output_fields(input_masks,
                       pipe_handle_in,
                       pipe_handle_out,
                       num_bytes_buffer):
-    """Transmit mask pixel data through pipe to apparatus. Return list of ROI field arrays."""
+    """Transmit mask pixel data through pipe to apparatus. Return list of output field metric arrays."""
     t0=time.time()
     roi_placeholder = []
     ###### PLOT MASK ####
@@ -129,10 +152,14 @@ def wavefront_phase_optimizer(pipe_in_handle,
                               plot_bool):
     """Optimize wavefront over generations. Return final mask array, list of output values
 
-    Note: iterates over generations. For each generation: generates output intensity field matrices,
-    sorts input array based on rank. Generates "G" new child masks. For each child, randomly chooses
-    two parents for breeding based on probability distribution "prob", and breeds them. Culls lowest
-    ranked input masks and replaces them with child masks.
+    Note: iterates over generations. For each generation each SLM mask is sent through output pipe to
+    SLM apparatus and the output field metric for each mask is received from apparatus through input pipe.
+    Masks and metrics are sent and received one at a time, sequentially.
+    The metrics are passed through the fitness function, ranking the masks which are sorted based on this
+    rank. "G" new child masks are generated. For each child, the algorithm randomly chooses
+    two parent masks for breeding based on rank and according to probability distribution "prob", which
+    gives an increased probability of being chosen to higher ranked masks, and breeds them. The lowest
+    ranked input masks are then culled and replaced with the child masks.
     """
     
     phase_vals = []
@@ -186,36 +213,36 @@ def wavefront_phase_optimizer(pipe_in_handle,
 
 
 def fitness(output_field):
-    """Return fitness value of mask as float.
+    """Return the mean of output_field.
 
     Note: Adjust fitness function to suit your optimization process.
     """
     return np.mean(output_field)
 
+
 ################################# MAIN ##############################################
-if __name__ == '__main__':
-
-    PIPE_IN_HANDLE = "\\\\.\\pipe\\LABVIEW_OUT"
-    PIPE_OUT_HANDLE = "\\\\.\\pipe\\LABVIEW_IN"
-    BYTES_BUFFER_SIZE = 4
-    PLOT = True # plots fitness values for each generation if True, no plot if False
+def main():
+    PIPE_IN_HANDLE = args.pipe_in_handle
+    PIPE_OUT_HANDLE = args.pipe_in_handle
+    BYTES_BUFFER_SIZE = args.bytes_buffer_size
+    PLOT = args.plot # plots fitness values for each generation if True, no plot if False
                             
-    SLM_WIDTH = 32*6
-    SLM_HEIGHT = 24*6
-    SEGMENT_WIDTH = 32 # SLM_WIDTH % SEGMENT_WIDTH must be 0
-    SEGMENT_HEIGHT = 24 # SLM_HEIGHT % SEGMENT_HEIGHT must be 0
-    POP = 30 # Population of generated input phase masks. (optimal ~ 30)
-    GENS = 1000 # Number of generations to run algorithm. (optimal ~ 2000)
+    SLM_WIDTH = args.slm_width
+    SLM_HEIGHT = args.slm_height
+    SEGMENT_WIDTH = args.segment_width # SLM_WIDTH % SEGMENT_WIDTH must be 0
+    SEGMENT_HEIGHT = args.segment_height # SLM_HEIGHT % SEGMENT_HEIGHT must be 0
+    POP = args.pop # Population of generated input phase masks. (optimal ~ 30)
+    GENS = args.gens # Number of generations to run algorithm. (optimal ~ 2000)
 
-    MUTATE_INITIAL_RATE = .1 # (optimal ~ .1)
-    MUTATE_FINAL_RATE = .013 # (optimal ~ .013)
-    MUTATE_DECAY_FACTOR = 650 # (optimal ~ 650)
+    MUTATE_INITIAL_RATE = args.mutate_initial_rate # (optimal ~ .1)
+    MUTATE_FINAL_RATE = args.mutate_final_rate # (optimal ~ .013)
+    MUTATE_DECAY_FACTOR = args.mutate_decay_factor # (optimal ~ 650)
 
-    NUM_PHASE_VALS = 256
+    NUM_PHASE_VALS = args.num_phase_vals
     num_segments = get_num_segments(SLM_WIDTH, SLM_HEIGHT, SEGMENT_WIDTH, SEGMENT_HEIGHT)
     segment_rows = int(SLM_HEIGHT/SEGMENT_HEIGHT)
     segment_cols = int(SLM_WIDTH/SEGMENT_WIDTH)
-
+    
     time_start = time.time()
 
     optimized_mask, max_output_vals = wavefront_phase_optimizer(PIPE_IN_HANDLE,
@@ -235,10 +262,128 @@ if __name__ == '__main__':
                                                                 time_start,
                                                                 PLOT)
     time_end = time.time()
-    print("time: ",str(datetime.timedelta(seconds=time_end-time_start)))
-    print("seconds: ",time_end-time_start)
-
+    print("Optimization Time: ",str(datetime.timedelta(seconds=time_end-time_start)))
+    
+    np.savetxt(args.save_path, optimized_mask)
+    
     plt.plot(max_output_vals)
     plt.show()
 
 
+
+if __name__ == '__main__':
+    if len(sys.argv)==2 and sys.argv[1]=='--help':
+        print(__doc__)
+    if len(sys.argv)==2 and sys.argv[1]=='--info':
+        print(__doc__)
+
+    # Parse Command Line Arguments   
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        '--pipe_in_handle',
+        type=str,
+        default='\\\\.\\pipe\\LABVIEW_OUT',
+        help='Input Pipe handle. DEFAULT="\\\\.\\pipe\\LABVIEW_OUT"'
+    
+    )
+    parser.add_argument(
+        '--pipe_out_handle',
+        type=str,
+        default='\\\\.\\pipe\\LABVIEW_IN',
+        help='Output Pipe handle. DEFAULT="\\\\.\\pipe\\LABVIEW_IN"'
+    
+    )        
+    parser.add_argument(
+        '--bytes_buffer_size',
+        type=int,
+        default=4,
+        help='Number of bytes describing the input/output buffer size. DEFAULT=4'
+    
+    )  
+    parser.add_argument(
+        '--plot',
+        type=bool,
+        default=False,
+        help='Turn on/off visualization of optimization. DEFAULT=False'
+    
+    )
+    parser.add_argument(
+        '--slm_width',
+        type=int,
+        default=1024,
+        help='Pixel width of SLM. DEFAULT=1024'
+    
+    )
+    parser.add_argument(
+        '--slm_height',
+        type=int,
+        default=768,
+        help='Pixel height of SLM. DEFAULT=768'
+    
+    )
+    parser.add_argument(
+        '--segment_width',
+        type=int,
+        default=32,
+        help='Pixel width of each segment (group of pixels on SLM). Must be a factor of the slm width. DEFAULT=32'
+    
+    )
+    parser.add_argument(
+        '--segment_height',
+        type=int,
+        default=24,
+        help='Pixel height of each segment (group of pixels on SLM). Must be a factor of the slm height. DEFAULT=24'
+    
+    )
+       
+    parser.add_argument(
+        '--pop',
+        type=int,
+        default=30,
+        help='Initial population of randomly generated phase masks in genetic algorithm. DEFAULT=30'
+    
+    )
+    parser.add_argument(
+        '--gens',
+        type=int,
+        default=1000,
+        help='Number of generations to run genetic algorithm. DEFAULT=1000'
+     
+    )
+    parser.add_argument(
+        '--mutate_initial_rate',
+        type=float,
+        default=.1,
+        help='Initial mutation rate for genetic algorithm. DEFAULT=0.1'
+    
+    )
+    parser.add_argument(
+        '--mutate_final_rate',
+        type=float,
+        default=.013,
+        help='Final mutation rate for genetic algorithm. DEFAULT=0.013'
+    
+    )
+    parser.add_argument(
+        '--mutate_decay_factor',
+        type=float,
+        default=650,
+        help='Final mutation rate for genetic algorithm. DEFAULT=650'
+    
+    )
+    parser.add_argument(
+        '--num_phase_vals',
+        type=int,
+        default=256,
+        help='Number of discrete phase values to be passed to SLM. DEFAULT=256'
+    
+    )
+    parser.add_argument(
+        '--save_path',
+        type=str,
+        default='/tmp/optimized_masks/optimized_mask.txt',
+        help='Path of text file to save optimized mask. DEFAULT="/tmp/optimized_masks/optimized_mask.txt"'
+    
+    )
+    args = parser.parse_args()
+    main()

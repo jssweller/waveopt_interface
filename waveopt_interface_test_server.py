@@ -1,12 +1,21 @@
 #!/usr/bin/env python
+<<<<<<< HEAD
 
 import numpy as np
+=======
+>>>>>>> add_parser
 
+import numpy as np
 import win32pipe as wp
 import win32file as wf
 import matplotlib.pyplot as plt
 import time
 import datetime
+import subprocess
+
+from sys import executable
+from subprocess import Popen, CREATE_NEW_CONSOLE
+
 
 np.set_printoptions(threshold=np.nan) # Allow printing of large string
 
@@ -51,13 +60,20 @@ pipe_out = wp.CreateNamedPipe("\\\\.\\pipe\\LABVIEW_OUT",
                        wp.PIPE_TYPE_BYTE | wp.PIPE_WAIT,
                        1,65536, 65536,300,None)
 
-print('ready')
+print('ready....')
+print('calling waveopt_interface.py....')
+
+p = subprocess.Popen('python waveopt_interface.py --SLM_WIDTH 192 --SLM_HEIGHT 144 --PLOT True',
+                     creationflags=CREATE_NEW_CONSOLE)
+
+print('...done')
 for i in range(300000):
     wp.ConnectNamedPipe(pipe_in, None)
     wp.ConnectNamedPipe(pipe_out, None)
 
     read_pipe = wf.ReadFile(pipe_in, get_buffer_size(pipe_in, NUM_BYTES_BUFFER))
     read_array = list(read_pipe[1])
+    print('pipe read...')
 
     ### Plot Masks after reading ####
 ##    plt.matshow(np.asarray(read_array).reshape(l,k))
