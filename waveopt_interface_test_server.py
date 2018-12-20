@@ -67,7 +67,7 @@ pipe_out = wp.CreateNamedPipe("\\\\.\\pipe\\LABVIEW_OUT",
 print('ready....')
 print('calling waveopt_interface.py....')
 
-p = subprocess.Popen('python waveopt_interface.py --SLM_WIDTH 192 --SLM_HEIGHT 144 --PLOT True',
+p = subprocess.Popen('python waveopt_interface.py --slm_width 192 --slm_height 144 --plot True',
                      creationflags=CREATE_NEW_CONSOLE)
 
 print('...done')
