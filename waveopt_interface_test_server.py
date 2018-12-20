@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 <<<<<<< HEAD
+r"""
+Simulated apparatus for testing waveopt_interface.py
+"""
+
 
 import numpy as np
 =======
