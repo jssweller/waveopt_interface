@@ -221,9 +221,10 @@ def fitness(output_field):
 
 
 ################################# MAIN ##############################################
-def main():
+def main(args):
+    print('wave_opt running...')
     PIPE_IN_HANDLE = args.pipe_in_handle
-    PIPE_OUT_HANDLE = args.pipe_in_handle
+    PIPE_OUT_HANDLE = args.pipe_out_handle
     BYTES_BUFFER_SIZE = args.bytes_buffer_size
     PLOT = args.plot # plots fitness values for each generation if True, no plot if False
                             
@@ -385,5 +386,5 @@ if __name__ == '__main__':
         help='Path of text file to save optimized mask. DEFAULT="/tmp/optimized_masks/optimized_mask.txt"'
     
     )
-    args = parser.parse_args()
-    main()
+    
+    main(parser.parse_args())

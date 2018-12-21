@@ -1,13 +1,8 @@
 #!/usr/bin/env python
-<<<<<<< HEAD
 r"""
 Simulated apparatus for testing waveopt_interface.py
 """
 
-
-import numpy as np
-=======
->>>>>>> add_parser
 
 import numpy as np
 import win32pipe as wp
@@ -69,6 +64,19 @@ print('calling waveopt_interface.py....')
 
 p = subprocess.Popen('python waveopt_interface.py --slm_width 192 --slm_height 144 --plot True',
                      creationflags=CREATE_NEW_CONSOLE)
+
+##with open("log.txt", "w") as f:
+##    try:
+##        subprocess.check_call('python waveopt_interface.py --slm_width 192 --slm_height 144 --plot True --pipe_in_handle \\\\.\\pipe\\LABVIEW_OUT --pipe_out_handle \\\\.\\pipe\\LABVIEW_IN', stderr=f)
+####        df = Popen(["ls", "/home/non"], stdout=subprocess.PIPE)
+##        p = subprocess.Popen('python waveopt_interface.py --slm_width 192 --slm_height 144 --plot True --pipe_in_handle \\\\.\\pipe\\LABVIEW_OUT --pipe_out_handle \\\\.\\pipe\\LABVIEW_IN',
+##                     creationflags=CREATE_NEW_CONSOLE, stdout=subprocess.PIPE)
+##
+##        output, err = p.communicate()
+##    except subprocess.CalledProcessError as e:
+##        print(e)
+##        exit(1)
+
 
 print('...done')
 for i in range(300000):
