@@ -69,7 +69,9 @@ def get_output_fields(input_masks,
                       segment_cols,
                       pipe_handle_in,
                       pipe_handle_out,
-                      num_bytes_buffer):
+                      num_bytes_buffer,
+                      fitness_func,
+                      raw_outputs=False):
     """Transmit mask pixel data through pipe to apparatus. Return list of output field metric arrays."""
     t0=time.time()
     roi_placeholder = []
@@ -82,7 +84,10 @@ def get_output_fields(input_masks,
 
         read_pipe = wf.ReadFile(pipe_handle_in, get_buffer_size(pipe_handle_in, num_bytes_buffer))
         read_array = list(read_pipe[1])
-        roi_placeholder.append(fitness(read_array))
+        if raw_outputs == False:
+            roi_placeholder.append(fitness(read_array,fitness_func))
+        if raw_outputs == True:
+            roi_placeholder.append(read_array)
     print(time.time()-t0)
     return roi_placeholder
 
@@ -116,16 +121,27 @@ def select_parents(parent_index_dist, probabilities):
     """Return an array of two randomly chosen ints."""
     return np.random.choice(parent_index_dist, size=2, p=probabilities, replace=False)
 
-def init_masks(num_masks, segment_rows, segment_cols, segment_height, segment_width, phase_vals):
+def init_masks(num_masks, segment_rows, segment_cols, segment_height, segment_width, phase_vals, uniform=False):
     """Return list of initialized input masks."""
     input_masks = []
-    for mask in range(num_masks):
-        newmask = np.empty((segment_rows, segment_cols, segment_height, segment_width), np.uint8)
-        for row in range(segment_rows):
-            for col in range(segment_cols):
-                newmask[row,col,:,:] = phase_vals[np.random.randint(0,len(phase_vals))]
-        input_masks.append(newmask)
-        
+    
+    if uniform == False:
+        for mask in range(num_masks):
+            newmask = np.empty((segment_rows, segment_cols, segment_height, segment_width), np.uint8)
+            for row in range(segment_rows):
+                for col in range(segment_cols):
+                    newmask[row,col,:,:] = phase_vals[np.random.randint(0,len(phase_vals))]
+            input_masks.append(newmask)
+            
+    if uniform == True:
+         for mask in range(num_masks):
+            phaseval = phase_vals[np.random.randint(0,len(phase_vals))]
+            newmask = np.empty((segment_rows, segment_cols, segment_height, segment_width), np.uint8)
+            for row in range(segment_rows):
+                for col in range(segment_cols):
+                    newmask[row,col,:,:] = phaseval
+            input_masks.append(newmask)
+            
     return input_masks
 
 def get_num_segments(slm_width, slm_height, segment_width, segment_height):
@@ -144,6 +160,7 @@ def wavefront_phase_optimizer(pipe_in_handle,
                               segment_rows,
                               segment_cols,
                               generations,
+                              fitness_func,
                               num_phase_vals,
                               mutate_initial_rate,
                               mutate_final_rate,
@@ -171,7 +188,8 @@ def wavefront_phase_optimizer(pipe_in_handle,
     parent_probability_dist = np.arange(pstep,(num_masks-num_childs+1)*pstep,pstep) # Probability distribution for parent selection.
 
     input_masks = init_masks(num_masks, segment_rows, segment_cols, segment_height, segment_width, phase_vals)
-    
+    uniform_masks = init_masks(num_masks, segment_rows, segment_cols, segment_height, segment_width, phase_vals, uniform=True)
+
     pipe_in = wf.CreateFile(pipe_in_handle,
                  wf.GENERIC_READ | wf.GENERIC_WRITE,
                  0, None,
@@ -185,6 +203,22 @@ def wavefront_phase_optimizer(pipe_in_handle,
                  0,None)
                               
     max_output_vals = []
+
+    # Get Initial average intensity by applying uniform phase masks.
+    print('uniform shape', np.shape(uniform_masks))
+    slm_outputs = get_output_fields(uniform_masks,
+                                        segment_width,
+                                        segment_height,
+                                        segment_rows,
+                                        segment_cols,
+                                        pipe_in,
+                                        pipe_out,
+                                        bytes_buffer_size,
+                                        fitness_func,
+                                        True)
+    initial_avg_intensity = np.mean(slm_outputs)
+    print('Initial Average Intensity = ', initial_avg_intensity)
+    
     for gen in range(generations):
         slm_outputs = []
         num_mutations = int(round(num_segments * ((mutate_initial_rate - mutate_final_rate)
@@ -199,7 +233,8 @@ def wavefront_phase_optimizer(pipe_in_handle,
                                         segment_cols,
                                         pipe_in,
                                         pipe_out,
-                                        bytes_buffer_size)
+                                        bytes_buffer_size,
+                                        fitness_func)
         max_output_vals.append(np.max(slm_outputs)) # record max output values for visualization
         input_masks = ranksort(slm_outputs,input_masks,gen, prev_time) # sort input masks by rank
         if plot_bool is True:
@@ -209,20 +244,38 @@ def wavefront_phase_optimizer(pipe_in_handle,
             parents = select_parents(parent_index_dist, parent_probability_dist)
             input_masks[child] = breed(input_masks[parents[0]],input_masks[parents[1]],num_mutations,phase_vals)
     final_mask = input_masks[-1]
-    return final_mask, max_output_vals
+    return final_mask, max_output_vals, initial_avg_intensity
 
 
-def fitness(output_field):
+def fitness(output_field,func):
     """Return the mean of output_field.
 
     Note: Adjust fitness function to suit your optimization process.
     """
+    if func == 'max':
+        return np.max(output_field)
+    
+    if func == 'spot':
+        if np.sum(output_field)==0:
+            return 0
+        return np.sum(np.square(output_field))/np.sum(output_field)**2
+    
     return np.mean(output_field)
-
 
 ################################# MAIN ##############################################
 def main(args):
     print('wave_opt running...')
+    print(args)
+    print(args.save_path)
+
+    file = open(args.save_path+'log.txt','w+')
+    file.write('This is the log file for wave_opt.py. \n \n')
+    file.write('Parameters: \n')
+    for arg in vars(args):
+        file.write('\n'+str(arg)+'= '+str(getattr(args, arg)))
+    file.close()
+    
+    
     PIPE_IN_HANDLE = args.pipe_in_handle
     PIPE_OUT_HANDLE = args.pipe_out_handle
     BYTES_BUFFER_SIZE = args.bytes_buffer_size
@@ -234,6 +287,7 @@ def main(args):
     SEGMENT_HEIGHT = args.segment_height # SLM_HEIGHT % SEGMENT_HEIGHT must be 0
     POP = args.pop # Population of generated input phase masks. (optimal ~ 30)
     GENS = args.gens # Number of generations to run algorithm. (optimal ~ 2000)
+    FITNESS = args.fitness_func
 
     MUTATE_INITIAL_RATE = args.mutate_initial_rate # (optimal ~ .1)
     MUTATE_FINAL_RATE = args.mutate_final_rate # (optimal ~ .013)
@@ -246,7 +300,7 @@ def main(args):
     
     time_start = time.time()
 
-    optimized_mask, max_output_vals = wavefront_phase_optimizer(PIPE_IN_HANDLE,
+    optimized_mask, max_output_vals, initial_avg_intensity = wavefront_phase_optimizer(PIPE_IN_HANDLE,
                                                                 PIPE_OUT_HANDLE,
                                                                 BYTES_BUFFER_SIZE,
                                                                 num_segments,
@@ -256,6 +310,7 @@ def main(args):
                                                                 segment_rows,
                                                                 segment_cols,
                                                                 GENS,
+                                                                FITNESS,
                                                                 NUM_PHASE_VALS,
                                                                 MUTATE_INITIAL_RATE,
                                                                 MUTATE_FINAL_RATE,
@@ -264,8 +319,10 @@ def main(args):
                                                                 PLOT)
     time_end = time.time()
     print("Optimization Time: ",str(datetime.timedelta(seconds=time_end-time_start)))
+
     
-    np.savetxt(args.save_path, optimized_mask)
+    np.savetxt(args.save_path+'optimized_mask.txt', optimized_mask)
+    np.savetxt(args.save_path+'max_output_vals.txt', max_output_vals)
     
     plt.plot(max_output_vals)
     plt.show()
@@ -380,10 +437,17 @@ if __name__ == '__main__':
     
     )
     parser.add_argument(
+        '--fitness_func',
+        type=str,
+        default='mean',
+        help='Fitness function to use for ranking masks. OPTIONS: "mean", "max", "spot". DEFAULT="mean"'
+    
+    )
+    parser.add_argument(
         '--save_path',
         type=str,
-        default='/tmp/optimized_masks/optimized_mask.txt',
-        help='Path of text file to save optimized mask. DEFAULT="/tmp/optimized_masks/optimized_mask.txt"'
+        default='waveopt_output_files/',
+        help='Path of text file to save optimized mask. DEFAULT="waveopt_output_files/"'
     
     )
     
