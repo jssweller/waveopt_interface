@@ -35,6 +35,7 @@ import matplotlib.pyplot as plt
 import time
 import datetime
 import sys
+import os
 
 __author__ = "Jesse Weller"
 __copyright__ = "Copyright 2018, Jesse Weller, All rights reserved"
@@ -88,7 +89,7 @@ def get_output_fields(input_masks,
             roi_placeholder.append(fitness(read_array,fitness_func))
         if raw_outputs == True:
             roi_placeholder.append(read_array)
-    print(time.time()-t0)
+    print('Interface Time (seconds): ', time.time()-t0)
     return roi_placeholder
 
 def ranksort(output_fields, input_masks, generation, prev_time):
@@ -101,7 +102,7 @@ def ranksort(output_fields, input_masks, generation, prev_time):
         sorted_input.append(input_masks[ranks[i]])
     if generation % 1 == 0:
         print("Generation ",generation,": output focus=",output_fields[ranks[-1]])
-        print("time: ",str(datetime.timedelta(seconds=time.time()-prev_time)))
+        print("Run Time: ",str(datetime.timedelta(seconds=time.time()-prev_time)))
     return sorted_input 
 
 def breed(parent1, parent2, mutate, phase_vals):
@@ -205,7 +206,6 @@ def wavefront_phase_optimizer(pipe_in_handle,
     max_output_vals = []
 
     # Get Initial average intensity by applying uniform phase masks.
-    print('uniform shape', np.shape(uniform_masks))
     slm_outputs = get_output_fields(uniform_masks,
                                         segment_width,
                                         segment_height,
@@ -266,14 +266,17 @@ def fitness(output_field,func):
 def main(args):
     print('wave_opt running...')
     print(args)
-    print(args.save_path)
+    print('plot ', args.plot)
 
-    file = open(args.save_path+'log.txt','w+')
+    filename=args.save_path+args.save_dir
+    print(filename)
+    os.makedirs(filename, exist_ok=True)
+    file = open(args.save_path+args.save_dir+'/log.txt','w+')
     file.write('This is the log file for wave_opt.py. \n \n')
     file.write('Parameters: \n')
     for arg in vars(args):
         file.write('\n'+str(arg)+'= '+str(getattr(args, arg)))
-    file.close()
+    
     
     
     PIPE_IN_HANDLE = args.pipe_in_handle
@@ -320,10 +323,15 @@ def main(args):
     time_end = time.time()
     print("Optimization Time: ",str(datetime.timedelta(seconds=time_end-time_start)))
 
+    file.write('\n\n Initial Average Intensity: '+str(initial_avg_intensity))
+    file.write('\n Final Output Value: '+str(max_output_vals[-1]))
+    file.write('\n Final Enhancement: '+str(max_output_vals[-1]-initial_avg_intensity))
+    file.write('\n\n Optimization Time: '+str(datetime.timedelta(seconds=time_end-time_start)))
+    file.close()
     
-    np.savetxt(args.save_path+'optimized_mask.txt', optimized_mask)
-    np.savetxt(args.save_path+'max_output_vals.txt', max_output_vals)
-    
+    np.savetxt(args.save_path+args.save_dir+'optimized_mask.txt', optimized_mask)
+    np.savetxt(args.save_path+args.save_dir+'max_output_vals.txt', max_output_vals)
+        
     plt.plot(max_output_vals)
     plt.show()
 
@@ -450,5 +458,11 @@ if __name__ == '__main__':
         help='Path of text file to save optimized mask. DEFAULT="waveopt_output_files/"'
     
     )
+    parser.add_argument(
+        '--save_dir',
+        type=str,
+        default='waveopt_0001',
+        help='Directy of output files. DEFAULT="waveopt_0001"'
     
+    )
     main(parser.parse_args())

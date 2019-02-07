@@ -30,7 +30,7 @@ def trans(inp,trans):
 
 NUM_BYTES_BUFFER = 4
 
-k,l = 32*6, 24*6 # dimensions of input masks (optimal ~ 33,33)
+k,l = 32, 24 # dimensions of input masks (optimal ~ 33,33)
 m,n = 32, 24 # dimensions of the output field. (optimal ~ 33,33)
 N = k*l # input matrix pixels (modes).
 M = m*n # output matrix pixels (modes).
@@ -62,7 +62,7 @@ pipe_out = wp.CreateNamedPipe("\\\\.\\pipe\\LABVIEW_OUT",
 print('ready....')
 print('calling waveopt_interface.py....')
 
-p = subprocess.Popen('python waveopt_interface.py --slm_width 192 --slm_height 144 --plot True',
+p = subprocess.Popen('python waveopt_interface.py --slm_width 32 --slm_height 24 --fitness_func max --gens 100 --save_dir test_001 --plot True',
                      creationflags=CREATE_NEW_CONSOLE)
 
 ##with open("log.txt", "w") as f:
@@ -79,7 +79,7 @@ p = subprocess.Popen('python waveopt_interface.py --slm_width 192 --slm_height 1
 
 
 print('...done')
-for i in range(300000):
+for i in range(30000000):
     wp.ConnectNamedPipe(pipe_in, None)
     wp.ConnectNamedPipe(pipe_out, None)
 
